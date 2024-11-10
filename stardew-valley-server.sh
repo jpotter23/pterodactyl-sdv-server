@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -f /tmp/.X10-lock ]; then rm /tmp/.X10-lock; fi
-Xvfb :10 -screen 0 884x515x24 -ac &
+Xvfb :10 -screen 0 884x515x24 -ac -nolisten tcp -nolisten unix &
 
 while [ ! -z "`xdpyinfo -display :10 2>&1 | grep 'unable to open display'`" ]; do
   echo Waiting for display;
