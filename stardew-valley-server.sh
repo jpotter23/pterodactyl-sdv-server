@@ -8,7 +8,6 @@ echo "done!"
 echo "Checking & Securing VNC Config ..."
 PORT=${VNC_PORT-$((5900 + $RANDOM % 99))}
 PASS=${VNC_PASS-$(pwgen -1)}
-echo -e "VNC PORT: $PORT\nVNC PASS: $PASS"
 
 export DISPLAY=:10.0
 DESKTOP_NAME=${DESKTOP_NAME-StardewValley}
@@ -29,8 +28,9 @@ x11vnc -display :10 \
         -passwd $PASS \
         -shared & 
 sleep 5
-echo "Launching i3 ..."; i3 &
-export XAUTHORITY=~/.Xauthority; echo "Set XAUTHORITY=$XAUTHORITY ..."
-TERM=xterm; echo "Set TERM=$TERM"
-echo "Launcing Game: ./StardewValley"
+echo "PASS=$PASS"
+i3 &
+export XAUTHORITY=~/.Xauthority
+TERM=xterm
+echo "Launching ./StardewValley"
 ./StardewValley
