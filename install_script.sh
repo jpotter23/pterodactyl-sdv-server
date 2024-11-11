@@ -3,22 +3,38 @@
 #
 # Server Files: /mnt/server
 # Image to install with is 'mono:latest'
-apt -y update
-apt -y --no-install-recommends install curl lib32gcc1 ca-certificates wget unzip
+apt-get -y update
+apt-get -y upgrade
 
 ## just in case someone removed the defaults.
 if [ "${STEAM_USER}" == "" ]; then
-    echo -e "steam user is not set.\n"
-    echo -e "Using anonymous user.\n"
-    STEAM_USER=anonymous
-    STEAM_PASS=""
-    STEAM_AUTH=""
-else
-    echo -e "user set to ${STEAM_USER}"
+    echo "Steam Usert is not set, but is required!"
+    echo "ERROR: A Steam account that owns Stardew Valley is required for this server to work."
+    exit 1
+fi
+echo -e "Steam user set to ${STEAM_USER}"
+if [ "${STEAM_PASS}" == "" ]; then
+    echo "Steam Password is not set, but is required!"
+    echo "ERROR: A Steam account that owns Stardew Valley is required for this server to work."
+    exit 1
 fi
 
+if [ "${VNC_PASS}" == "" ]; then
+    export VNC_PASS=$(pwgen -1)
+    echo "VNC Password is not set, a random password will be generated!"
+fi
+
+if [ "${VNC_PORT}" == "" ]; then
+    echo "VNC Port is not set, a random port will be assigned!"
+    export VNC_PORT=$((5900 + $RANDOM % 99))
+fi
+
+echo "Writing VNC Details to /home/container/VNC_INFO"
+echo -e "VNC_PASS:$VNC_PASS\nVNC_PORT:$VNC_PORT\n" | tee /mnt/server/VNC_INFO
+
 cd /tmp
-mkdir -p /mnt/server/steamcmd
+
+mkdir -vp /mnt/server/steamcmd
 
 # SteamCMD fails otherwise for some reason, even running as root.
 # This is changed at the end of the install process anyways.
@@ -27,46 +43,50 @@ export HOME=/mnt/server
 
 ## download and install steamcmd
 curl -sSL -o steamcmd.tar.gz https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
-tar -xzvf steamcmd.tar.gz -C /mnt/server/steamcmd
+tar -xzf steamcmd.tar.gz -C /mnt/server/steamcmd
 cd /mnt/server/steamcmd
 
 ## install game using steamcmd
-./steamcmd.sh +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} +force_install_dir /mnt/server +app_update ${SRCDS_APPID} validate +quit
+./steamcmd.sh +force_install_dir /mnt/server +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} +app_update ${SRCDS_APPID-413150} validate +quit
 
-## set up 32 bit libraries
-mkdir -p /mnt/server/.steam/sdk32
+## set up  libraries
+mkdir -vp /mnt/server/.steam/sdk{32,64}
 cp -v /mnt/server/steamdcmd/linux32/steamclient.so /mnt/server/.steam/sdk32/steamclient.so
-
-## set up 64 bit libraries
-mkdir -p /mnt/server/.steam/sdk64
 cp -v /mnt/server/steamcmd/linux64/steamclient.so /mnt/server/.steam/sdk64/steamclient.so
 
 ## Game specific setup.
 cd /mnt/server/
-mkdir -p ./.config
-mkdir -p ./.config/i3
-mkdir -p ./.config/StardewValley
-mkdir -p ./nexus
-mkdir -p ./storage
-mkdir -p ./logs
+mkdir -vp .config .config/i3 .config/StardewValley ./nexus ./storage ./logs
 
 ## Stardew Valley specific setup.
-wget https://github.com/Pathoschild/SMAPI/releases/download/3.8/SMAPI-3.8.0-installer.zip -qO ./storage/nexus.zip
-unzip ./storage/nexus.zip -d ./nexus/
-/bin/bash -c "echo -e \"2\n/mnt/server\n1\n\" | /usr/bin/mono /mnt/server/nexus/SMAPI\ 3.8.0\ installer/internal/unix-install.exe"
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/stardew_valley_server.config -qO ./.config/StardewValley/startup_preferences
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/i3.config -qO ./.config/i3/config
-wget https://github.com/metrogamelab/pterodactyl-server-stardew-valley/raw/main/alwayson.zip -qO ./storage/alwayson.zip
-wget https://github.com/metrogamelab/pterodactyl-server-stardew-valley/raw/main/unlimitedplayers.zip -qO ./storage/unlimitedplayers.zip
-wget https://github.com/metrogamelab/pterodactyl-server-stardew-valley/raw/main/autoloadgame.zip -qO ./storage/autoloadgame.zip
-unzip ./storage/alwayson.zip -d ./Mods
-unzip ./storage/unlimitedplayers.zip -d ./Mods
-unzip ./storage/autoloadgame.zip -d ./Mods
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/alwayson.json -qO ./Mods/Always On Server/config.json
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/unlimitedplayers.json -qO ./Mods/UnlimitedPlayers/config.json
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/autoloadgame.json -qO ./Mods/AutoLoadGame/config.json
-wget https://raw.githubusercontent.com/metrogamelab/pterodactyl-server-stardew-valley/main/stardew-valley-server.sh -qO ./stardew-valley-server.sh
-chmod +x ./stardew-valley-server.sh 
-rm ./storage/alwayson.zip ./storage/unlimitedplayers.zip ./storage/autoloadgame.zip
+wget https://github.com/Pathoschild/SMAPI/releases/download/4.0.8/SMAPI-4.0.8-installer.zip -qO /mnt/server/nexus.zip
+unzip -q /mnt/server/nexus.zip -d /mnt/server/nexus/
+export SMAPI_INSTALLER=$(find /mnt/server/nexus -regex '.*/linux/SMAPI.Installer')
+export SMAPI_NO_TERMINAL=true SMAPI_USE_CURRENT_SHELL=true 
+echo -e '2\n\n' | "$SMAPI_INSTALLER" --install --game-path "/mnt/server"
 
-echo 'Stardew Valley Installation complete. Restart server.'
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/stardew_valley_server.config -qO ./.config/StardewValley/startup_preferences
+
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/i3.config -qO ./.config/i3/config
+
+wget https://github.com/jpotter23/pterodactyl-sdv-server/raw/main/alwayson.zip -qO ./storage/alwayson.zip
+unzip -q ./storage/alwayson.zip -d ./Mods
+
+wget https://github.com/jpotter23/pterodactyl-sdv-server/raw/main/unlimitedplayers.zip -qO ./storage/unlimitedplayers.zip
+unzip -q ./storage/unlimitedplayers.zip -d ./Mods
+
+wget https://github.com/jpotter23/pterodactyl-sdv-server/raw/main/autoloadgame.zip -qO ./storage/autoloadgame.zip
+unzip -q ./storage/autoloadgame.zip -d ./Mods
+
+rm -fv ./storage/{alwayson,unlimitedplayers,autoloadgame,nexus}.zip
+
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/alwayson.json -qO ./Mods/Always On Server/config.json
+
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/unlimitedplayers.json -qO ./Mods/UnlimitedPlayers/config.json
+
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/autoloadgame.json -qO ./Mods/AutoLoadGame/config.json
+
+wget https://raw.githubusercontent.com/jpotter23/pterodactyl-sdv-server/main/stardew-valley-server.sh -qO ./stardew-valley-server.sh
+chmod +x ./stardew-valley-server.sh 
+
+echo 'Stardew Valley Installation complete. Waiting for server restart...'
