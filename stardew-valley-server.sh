@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -f /tmp/.X10-lock ]; then rm /tmp/.X10-lock; fi
-Xvfb :10 -screen 0 884x515x24 -ac -nolisten tcp -nolisten unix &
+Xvfb :10 -screen 0 884x515x24 -ac &
 
 while [ ! -z "`xdpyinfo -display :10 2>&1 | grep 'unable to open display'`" ]; do
   echo Waiting for display;
@@ -9,7 +9,7 @@ while [ ! -z "`xdpyinfo -display :10 2>&1 | grep 'unable to open display'`" ]; d
 done
 
 export DISPLAY=:10.0
-x11vnc -display :10 -rfbport 5900 -rfbportv6 -1 -no6 -noipv6 -httpportv6 -1 -forever -ncache 10 -desktop StardewValley -cursor arrow -passwd $VNC_PASS -shared & 
+x11vnc -display :10 -rfbport ${VNC_PORT-5900} -rfbportv6 -1 -no6 -noipv6 -httpportv6 -1 -forever -ncache 10 -desktop StardewValley -cursor arrow -passwd ${VNC_PASS-Drag0n37} -shared & 
 sleep 5
 i3 &
 export XAUTHORITY=~/.Xauthority
